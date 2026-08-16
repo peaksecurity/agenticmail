@@ -703,6 +703,10 @@ export function createStorageRoutes(
     } catch (err: any) { sendStorageError(res, err); }
   });
 
+  router.post('/storage/sql', (_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // INDEX MANAGEMENT
@@ -1220,39 +1224,6 @@ export function createStorageRoutes(
       await db.run('UPDATE agenticmail_storage_meta SET row_count = ?, updated_at = ' + nowExpr(dialect) + ' WHERE table_name = ?', [countResult?.cnt || 0, tableName]);
 
       res.json({ ok: true, imported, skipped, totalRows: countResult?.cnt || 0 });
-    } catch (err: any) { sendStorageError(res, err); }
-  });
-
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // RAW SQL (advanced, guarded)
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  router.post('/storage/sql', async (req: Request, res: Response) => {
-    const agent = getAgent(req, res);
-    if (!agent) return;
-    await ensureMetaTable();
-
-    try {
-      const { sql, params } = req.body as { sql: string; params?: any[] };
-      if (!sql) return res.status(400).json({ error: 'sql is required' });
-
-      // Safety: only allow operations on agent-owned or shared tables
-      const upper = sql.trim().toUpperCase();
-      const dangerousPatterns = ['DROP DATABASE', 'DROP SCHEMA', 'GRANT ', 'REVOKE ', 'CREATE USER', 'ALTER USER'];
-      for (const p of dangerousPatterns) {
-        if (upper.includes(p)) return res.status(403).json({ error: `Operation not allowed: ${p}` });
-      }
-
-      await verifySqlAccess(agent, sql);
-
-      if (upper.startsWith('SELECT') || upper.startsWith('WITH') || upper.startsWith('EXPLAIN') || upper.startsWith('PRAGMA')) {
-        const rows = await db.all(sql, params);
-        return res.json({ rows, count: rows.length });
-      } else {
-        await db.run(sql, params);
-        return res.json({ ok: true });
-      }
     } catch (err: any) { sendStorageError(res, err); }
   });
 

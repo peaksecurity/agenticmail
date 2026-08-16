@@ -150,26 +150,15 @@ describe('storage route SQL guards', () => {
     db.close();
   });
 
-  it('denies raw SQL access to another agent private table', async () => {
+  it('does not expose raw SQL over HTTP', async () => {
     const db = new DatabaseSync(':memory:');
     const baseUrl = await listen(createStorageApp(db));
 
-    const created = await request(baseUrl, '/storage/tables', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: 'secrets',
-        timestamps: false,
-        columns: [{ name: 'id', type: 'text', primaryKey: true }],
-      }),
-    });
-    expect(created.status).toBe(200);
-
     const denied = await request(baseUrl, '/storage/sql', {
       method: 'POST',
-      headers: { 'x-agent': 'intruder' },
-      body: JSON.stringify({ sql: `SELECT * FROM ${created.body.table}` }),
+      body: JSON.stringify({ sql: 'PRAGMA table_list' }),
     });
-    expect(denied.status).toBe(403);
+    expect(denied.status).toBe(404);
 
     db.close();
   });
